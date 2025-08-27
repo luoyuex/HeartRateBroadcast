@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>心率显示</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: transparent; /* 完全透明背景 */
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            border-radius: 8px;
+            user-select: none;
+            cursor: move;
+            -webkit-app-region: no-drag; /* 禁用默认的窗口拖拽 */
+        }
+        
+        .heart-rate-container {
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+        
+        .heart-icon {
+            color: #ff4757;
+            font-size: 20px;
+            margin-right: 8px;
+            animation: heartbeat 1s ease-in-out infinite alternate;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8); /* 添加文字阴影 */
+        }
+        
+        .heart-rate {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2ed573;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8); /* 添加文字阴影 */
+        }
+        
+        .bpm {
+            font-size: 12px;
+            color: #ddd;
+            margin-left: 4px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8); /* 添加文字阴影 */
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #ffa502;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8); /* 添加文字阴影 */
+        }
+        
+        @keyframes heartbeat {
+            from { transform: scale(1); }
+            to { transform: scale(1.2); }
+        }
+        
+        .offline {
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="heart-rate-container">
+        <div class="heart-icon">❤️</div>
+        <div class="heart-rate" id="heartRate">--</div>
+        <div class="bpm">bpm</div>
+    </div>
+    <div class="status" id="status">连接中...</div>
+    
+    <script src="renderer.js"></script>
+</body>
+</html>
