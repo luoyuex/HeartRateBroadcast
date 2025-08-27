@@ -4,17 +4,13 @@
   "version": "1.0.1",
   "description": "桌面心率显示应用",
   "main": "main.js",
+  "author": "Spark Development Team",
   "build": {
     "appId": "com.spark.heartrate",
     "productName": "Spark",
     "directories": {
       "output": "dist"
     },
-    "files": [
-      "**/*",
-      "!dist",
-      "!node_modules"
-    ],
     "mac": {
       "icon": "icon.icns",
       "category": "public.app-category.healthcare-fitness"
