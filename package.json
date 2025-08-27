@@ -1,10 +1,34 @@
 {
-  "name": "heart-rate-desktop",
-  "version": "1.0.0",
+  "name": "spark",
+  "productName": "Spark",
+  "version": "1.0.1",
   "description": "桌面心率显示应用",
   "main": "main.js",
+  "build": {
+    "appId": "com.spark.heartrate",
+    "productName": "Spark",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!dist",
+      "!node_modules"
+    ],
+    "mac": {
+      "icon": "icon.icns",
+      "category": "public.app-category.healthcare-fitness"
+    },
+    "win": {
+      "icon": "icon.ico"
+    }
+  },
   "scripts": {
-    "start": "electron .",
+    "start": "ELECTRON_APP_NAME=Spark electron .",
+    "start-spark": "./start-spark.sh",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build-dev": "electron-builder --dir",
     "web": "node server.js"
   },
   "dependencies": {
@@ -13,6 +37,7 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^26.0.12"
   }
 }

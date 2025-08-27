@@ -3,6 +3,12 @@ const path = require('path');
 const noble = require("@abandonware/noble");
 const WebSocket = require('ws');
 
+// 在最开始就设置应用名称
+app.setName('Spark');
+
+// 设置应用的用户数据目录名称
+app.setPath('userData', path.join(app.getPath('appData'), 'Spark'));
+
 let mainWindow;
 let deviceManagerWindow;
 let tray = null;
@@ -393,7 +399,23 @@ function initBluetooth() {
   });
 }
 
-// 分析设备类型
+// 获取应用图标路径的通用函数
+function getAppIconPath() {
+  // macOS 使用 icns 文件，其他平台使用 ico 文件
+  const iconPath = process.platform === 'darwin' 
+    ? path.join(__dirname, 'icon.icns')
+    : path.join(__dirname, 'icon.ico');
+  
+  // 检查图标文件是否存在
+  try {
+    require('fs').accessSync(iconPath, require('fs').constants.F_OK);
+    console.log(`✅ 找到图标文件: ${iconPath}`);
+    return iconPath;
+  } catch (error) {
+    console.log(`⚠️  图标文件不存在: ${iconPath}，使用默认图标`);
+    return null;
+  }
+}
 function analyzeDeviceType(name, serviceUuids, advertisement) {
   const nameLower = name.toLowerCase();
   
@@ -452,14 +474,58 @@ function analyzeDeviceType(name, serviceUuids, advertisement) {
 
 // 创建系统托盘
 function createTray() {
-  // 创建简单的托盘图标
-  const trayIcon = nativeImage.createFromDataURL(
-    'data:image/svg+xml,' + encodeURIComponent(`
-      <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
-        <text x="8" y="12" font-family="Arial" font-size="12" text-anchor="middle" fill="#e74c3c">❤</text>
-      </svg>
-    `)
-  );
+  // 使用应用图标作为托盘图标
+  let trayIcon;
+  
+  try {
+    // 尝试多种图标格式，优先使用PNG
+    let trayIconPath;
+    const iconFormats = [
+      path.join(__dirname, 'tray-icon-16.png'),
+      path.join(__dirname, 'tray-icon.png'),  
+      path.join(__dirname, 'icon.ico')
+    ];
+    
+    for (const iconPath of iconFormats) {
+      try {
+        require('fs').accessSync(iconPath, require('fs').constants.F_OK);
+        trayIcon = nativeImage.createFromPath(iconPath);
+        if (!trayIcon.isEmpty()) {
+          trayIconPath = iconPath;
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    
+    if (!trayIcon || trayIcon.isEmpty()) {
+      throw new Error('No valid tray icon found');
+    }
+    
+    console.log('✅ 托盘图标已加载:', trayIconPath);
+  } catch (error) {
+    console.log('⚠️  托盘图标加载失败:', error.message);
+    console.log('⚠️  使用默认托盘图标');
+    // 创建简单的SVG图标作为备选
+    trayIcon = nativeImage.createFromDataURL(
+      'data:image/svg+xml,' + encodeURIComponent(`
+        <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+          <text x="8" y="12" font-family="Arial" font-size="12" text-anchor="middle" fill="#e74c3c">❤</text>
+        </svg>
+      `)
+    );
+  }
+  
+  // 调整图标大小适配不同平台
+  if (!trayIcon.isEmpty()) {
+    trayIcon = trayIcon.resize({ width: 16, height: 16 });
+    
+    // macOS 和 Windows 都使用彩色图标，不再使用模板图像
+    // if (process.platform === 'darwin') {
+    //   trayIcon.setTemplateImage(true);
+    // }
+  }
   
   tray = new Tray(trayIcon);
   
@@ -537,14 +603,21 @@ function showDeviceManager() {
 
 function createWindow() {
   // 创建设备管理窗口
-  deviceManagerWindow = new BrowserWindow({
+  const iconPath = getAppIconPath();
+  const windowOptions = {
     width: 800,
     height: 600,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     }
-  });
+  };
+  
+  if (iconPath) {
+    windowOptions.icon = iconPath;
+  }
+  
+  deviceManagerWindow = new BrowserWindow(windowOptions);
 
   deviceManagerWindow.loadFile('device-manager.html');
   
@@ -576,7 +649,8 @@ function createWindow() {
 }
 
 function createHeartRateWindow() {
-  mainWindow = new BrowserWindow({
+  const iconPath = getAppIconPath();
+  const windowOptions = {
     width: 200,
     height: 80,
     frame: false,
@@ -589,7 +663,13 @@ function createHeartRateWindow() {
       nodeIntegration: true,
       contextIsolation: false
     }
-  });
+  };
+  
+  if (iconPath) {
+    windowOptions.icon = iconPath;
+  }
+  
+  mainWindow = new BrowserWindow(windowOptions);
 
   mainWindow.loadFile('index.html');
 
@@ -611,14 +691,21 @@ function createMenu() {
               deviceManagerWindow.focus();
             } else {
               // 创建设备管理器窗口，但不再自动创建心率窗口
-              deviceManagerWindow = new BrowserWindow({
+              const iconPath = getAppIconPath();
+              const windowOptions = {
                 width: 800,
                 height: 600,
                 webPreferences: {
                   nodeIntegration: true,
                   contextIsolation: false
                 }
-              });
+              };
+              
+              if (iconPath) {
+                windowOptions.icon = iconPath;
+              }
+              
+              deviceManagerWindow = new BrowserWindow(windowOptions);
               
               deviceManagerWindow.loadFile('device-manager.html');
               
@@ -695,7 +782,71 @@ function createMenu() {
 }
 
 app.whenReady().then(async () => {
-  console.log('🚀 启动心率监测器...');
+  // 设置应用名称和显示名称
+  app.setName('Spark');
+  
+  // macOS 特殊处理：设置应用的展示名称
+  if (process.platform === 'darwin') {
+    try {
+      // 尝试设置 NSApplication 的显示名称
+      const { exec } = require('child_process');
+      exec(`defaults write "${app.getPath('exe')}" CFBundleDisplayName "Spark"`);
+      exec(`defaults write "${app.getPath('exe')}" CFBundleName "Spark"`);
+    } catch (error) {
+      console.log('⚠️  无法设置Bundle名称:', error.message);
+    }
+  }
+  
+  console.log('🚀 启动 Spark 心率监测器...');
+  console.log(`📱 应用名称: ${app.getName()}`);
+  
+  // 设置应用图标（dock/任务栏图标）
+  const iconPath = getAppIconPath();
+  if (iconPath) {
+    if (process.platform === 'darwin') {
+      // macOS 使用 app.dock.setIcon() 设置 dock 图标
+      try {
+        // 先尝试使用PNG格式，更兼容
+        const pngIconPath = path.join(__dirname, 'tray-icon.png');
+        let iconToUse = iconPath;
+        
+        try {
+          require('fs').accessSync(pngIconPath, require('fs').constants.F_OK);
+          iconToUse = pngIconPath;
+          console.log('🔄 尝试使用PNG格式的dock图标:', iconToUse);
+        } catch (e) {
+          console.log('📝 使用ICNS格式的dock图标:', iconToUse);
+        }
+        
+        app.dock.setIcon(iconToUse);
+        console.log('✅ macOS Dock图标已设置:', iconToUse);
+      } catch (error) {
+        console.log('⚠️  设置macOS Dock图标失败:', error.message);
+        
+        // 备用方案：直接使用nativeImage
+        try {
+          const pngIconPath = path.join(__dirname, 'tray-icon.png');
+          const icon = require('electron').nativeImage.createFromPath(pngIconPath);
+          if (!icon.isEmpty()) {
+            app.dock.setIcon(icon);
+            console.log('✅ 使用备用方案设置Dock图标成功');
+          }
+        } catch (e2) {
+          console.log('⚠️  备用方案也失败:', e2.message);
+        }
+      }
+    } else if (typeof app.setIcon === 'function') {
+      // Windows 和 Linux 使用 app.setIcon()
+      try {
+        app.setIcon(iconPath);
+        console.log('✅ 应用图标已设置:', iconPath);
+      } catch (error) {
+        console.log('⚠️  设置应用图标失败:', error.message);
+      }
+    }
+  } else {
+    console.log('⚠️  未找到应用图标文件');
+  }
   
   // 启动蓝牙服务
   initBluetooth();
