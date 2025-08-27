@@ -27,7 +27,7 @@ jobs:
 
       # 打包 Windows 应用
       - name: Build Windows app
-        run: npx electron-builder --win
+        run: npx electron-builder --win --publish never
 
       # 上传构建产物（可在 GitHub 页面下载）
       - name: Upload build artifacts
