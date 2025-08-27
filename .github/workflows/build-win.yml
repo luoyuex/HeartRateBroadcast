@@ -1,0 +1,37 @@
+name: Build Windows Electron App
+
+on:
+  push:
+    branches:
+      - main   # 当推送到 main 分支时触发
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  build:
+    runs-on: windows-latest   # 在 GitHub 提供的 Windows 环境运行
+
+    steps:
+      # 拉取代码
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 设置 Node.js 版本（用 18 LTS）
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      # 安装依赖
+      - name: Install dependencies
+        run: npm install
+
+      # 打包 Windows 应用
+      - name: Build Windows app
+        run: npx electron-builder --win
+
+      # 上传构建产物（可在 GitHub 页面下载）
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: electron-win-build
+          path: dist/
