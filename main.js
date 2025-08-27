@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
 const path = require('path');
 const noble = require("@abandonware/noble");
 const WebSocket = require('ws');
 
 let mainWindow;
 let deviceManagerWindow;
+let tray = null;
 
 // 蓝牙设备管理
 const HEART_RATE_SERVICE_UUID = "180d";
@@ -238,11 +239,39 @@ async function disconnectDevice() {
 
 // 初始化蓝牙
 function initBluetooth() {
+  // 检查平台兼容性
+  if (process.platform === 'win32') {
+    console.log('⚠️  Windows 平台蓝牙提示：');
+    console.log('1. 确保以管理员权限运行应用');
+    console.log('2. 确保蓝牙已启用且驱动正常');
+    console.log('3. Windows 10/11 需要蓝牙 LE 支持');
+  }
+  
   noble.on("stateChange", async (state) => {
     console.log(`蓝牙状态: ${state}`);
+    
+    // Windows 平台特殊处理
+    if (process.platform === 'win32' && state === 'unsupported') {
+      console.log('❌ Windows 蓝牙不支持');
+      console.log('💡 解决方案：');
+      console.log('   1. 右键以管理员身份运行应用');
+      console.log('   2. 检查设备管理器中的蓝牙驱动');
+      console.log('   3. 确保蓝牙服务正在运行');
+      console.log('   4. 重启蓝牙适配器');
+      
+      broadcast({
+        type: 'bluetoothStatus',
+        state: state,
+        platform: 'windows',
+        error: 'Windows蓝牙不支持，请检查驱动和权限'
+      });
+      return;
+    }
+    
     broadcast({
       type: 'bluetoothStatus',
-      state: state
+      state: state,
+      platform: process.platform
     });
     
     if (state === "poweredOn" && isScanning) {
@@ -421,6 +450,91 @@ function analyzeDeviceType(name, serviceUuids, advertisement) {
   return { category: 'unknown', name: '未知设备', icon: '❓' };
 }
 
+// 创建系统托盘
+function createTray() {
+  // 创建简单的托盘图标
+  const trayIcon = nativeImage.createFromDataURL(
+    'data:image/svg+xml,' + encodeURIComponent(`
+      <svg width="16" height="16" xmlns="http://www.w3.org/2000/svg">
+        <text x="8" y="12" font-family="Arial" font-size="12" text-anchor="middle" fill="#e74c3c">❤</text>
+      </svg>
+    `)
+  );
+  
+  tray = new Tray(trayIcon);
+  
+  // 设置托盘提示文字
+  tray.setToolTip('心率监测器 - 点击打开设备管理器');
+  
+  // 创建托盘右键菜单
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '心率显示',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createHeartRateWindow();
+        }
+      }
+    },
+    {
+      label: '设备管理器',
+      click: () => {
+        showDeviceManager();
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '关于',
+      click: () => {
+        require('electron').dialog.showMessageBox(deviceManagerWindow || mainWindow, {
+          type: 'info',
+          title: '关于心率监测器',
+          message: '心率监测器 v1.0.0',
+          detail: '一个简单的蓝牙心率监测桌面应用'
+        });
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        app.isQuiting = true;
+        app.quit();
+      }
+    }
+  ]);
+  
+  tray.setContextMenu(contextMenu);
+  
+  // 单击托盘图标打开设备管理器
+  tray.on('click', () => {
+    showDeviceManager();
+  });
+  
+  // 双击托盘图标打开心率显示
+  tray.on('double-click', () => {
+    if (mainWindow) {
+      mainWindow.show();
+      mainWindow.focus();
+    } else {
+      createHeartRateWindow();
+    }
+  });
+}
+
+// 显示设备管理器窗口
+function showDeviceManager() {
+  if (deviceManagerWindow) {
+    deviceManagerWindow.show();
+    deviceManagerWindow.focus();
+  } else {
+    createWindow();
+  }
+}
+
 function createWindow() {
   // 创建设备管理窗口
   deviceManagerWindow = new BrowserWindow({
@@ -434,16 +548,31 @@ function createWindow() {
 
   deviceManagerWindow.loadFile('device-manager.html');
   
+  // Windows 下关闭窗口时隐藏而不退出
+  deviceManagerWindow.on('close', (event) => {
+    if (!app.isQuiting && process.platform === 'win32') {
+      event.preventDefault();
+      deviceManagerWindow.hide();
+      
+      // 首次隐藏时显示提示
+      if (!deviceManagerWindow.hasShownTrayTip) {
+        tray.displayBalloon({
+          title: '心率监测器',
+          content: '应用已最小化到系统托盘，点击托盘图标可重新打开'
+        });
+        deviceManagerWindow.hasShownTrayTip = true;
+      }
+      return false;
+    }
+  });
+  
   deviceManagerWindow.on('closed', () => {
     deviceManagerWindow = null;
     // 不再强制关闭心率窗口，让它独立存在
     // 用户可以通过菜单重新打开设备管理器
   });
-
-  // 创建心率显示悬浮窗
-  setTimeout(() => {
-    createHeartRateWindow();
-  }, 1000);
+  
+  // 移除自动创建心率窗口的逻辑
 }
 
 function createHeartRateWindow() {
@@ -481,7 +610,21 @@ function createMenu() {
             if (deviceManagerWindow) {
               deviceManagerWindow.focus();
             } else {
-              createWindow();
+              // 创建设备管理器窗口，但不再自动创建心率窗口
+              deviceManagerWindow = new BrowserWindow({
+                width: 800,
+                height: 600,
+                webPreferences: {
+                  nodeIntegration: true,
+                  contextIsolation: false
+                }
+              });
+              
+              deviceManagerWindow.loadFile('device-manager.html');
+              
+              deviceManagerWindow.on('closed', () => {
+                deviceManagerWindow = null;
+              });
             }
           }
         },
@@ -490,7 +633,7 @@ function createMenu() {
           click: () => {
             if (mainWindow) {
               mainWindow.focus();
-            } else if (deviceManagerWindow) {
+            } else {
               createHeartRateWindow();
             }
           }
@@ -560,8 +703,19 @@ app.whenReady().then(async () => {
   // 启动WebSocket服务器
   startWebSocketServer();
   
-  // 创建窗口
-  createWindow();
+  // 创建系统托盘
+  createTray();
+  
+  // 分别创建窗口，避免重复创建
+  createWindow(); // 创建设备管理器窗口
+  
+  // 延迟创建心率窗口，确保只创建一次
+  setTimeout(() => {
+    if (!mainWindow) {
+      createHeartRateWindow();
+    }
+  }, 1000);
+  
   createMenu();
   
   console.log('✅ 应用已启动，一键即用！');
@@ -570,22 +724,33 @@ app.whenReady().then(async () => {
 // 清理资源
 app.on('before-quit', async () => {
   console.log('正在关闭应用...');
+  app.isQuiting = true;
   await disconnectDevice();
   noble.stopScanning();
   if (wss) {
     wss.close();
   }
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+  if (tray) {
+    tray.destroy();
   }
 });
 
+app.on('window-all-closed', () => {
+  // 在 Windows 下允许所有窗口关闭而不退出应用（因为有托盘）
+  // 只有在 macOS 下才退出应用
+  if (process.platform === 'darwin') {
+    app.quit();
+  }
+  // Windows 下什么也不做，应用继续在托盘中运行
+});
+
 app.on('activate', () => {
+  // macOS 下点击 dock 图标时重新创建窗口
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  } else {
+    // 显示已存在的设备管理器窗口
+    showDeviceManager();
   }
 });
 

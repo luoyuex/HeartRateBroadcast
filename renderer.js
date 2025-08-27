@@ -1,6 +1,6 @@
 let ws;
 let heartRateElement = document.getElementById('heartRate');
-let statusElement = document.getElementById('status');
+// let statusElement = document.getElementById('status');
 let isConnected = false;
 
 function connectWebSocket() {
@@ -8,8 +8,8 @@ function connectWebSocket() {
     
     ws.onopen = () => {
         console.log('WebSocket连接已建立');
-        statusElement.textContent = '已连接';
-        statusElement.className = 'status';
+        // statusElement.textContent = '已连接';
+        // statusElement.className = 'status';
         isConnected = true;
     };
     

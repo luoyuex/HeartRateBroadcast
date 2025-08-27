@@ -11,18 +11,20 @@ const elements = {
     deviceList: document.getElementById('deviceList'),
     connectionInfo: document.getElementById('connectionInfo'),
     heartDisplay: document.getElementById('heartDisplay'),
-    heartRate: document.getElementById('heartRate')
+    heartRate: document.getElementById('heartRate'),
+    footer: document.getElementById('footer')
 };
 
 function connectWebSocket() {
-    updateStatus('正在连接设备管理器...', 'info');
+    updateFooter('正在连接通信服务...', 'connecting');
     
     ws = new WebSocket('ws://localhost:8080');
     
     ws.onopen = () => {
         console.log('WebSocket连接已建立');
-        updateStatus('已连接到设备管理器', 'success');
-        // 初始时按钮保持禁用，等待蓝牙状态消息
+        updateFooter('通信已连接', 'connected');
+        // 初始状态显示，等待蓝牙状态
+        updateStatus('等待蓝牙状态...', 'info');
     };
     
     ws.onmessage = (event) => {
@@ -36,7 +38,7 @@ function connectWebSocket() {
     
     ws.onclose = () => {
         console.log('WebSocket连接已关闭');
-        updateStatus('设备管理器连接断开，正在重连...', 'error');
+        updateFooter('通信连接断开，正在重连...', 'error');
         enableControls(false);
         
         // 3秒后重连
@@ -45,7 +47,8 @@ function connectWebSocket() {
     
     ws.onerror = (error) => {
         console.error('WebSocket错误:', error);
-        updateStatus('无法连接设备管理器，请确保scan.js正在运行', 'error');
+        updateFooter('通信连接失败', 'error');
+        updateStatus('无法连接设备管理器，请确保应用正在运行', 'error');
         enableControls(false);
     };
 }
@@ -73,7 +76,7 @@ function handleMessage(data) {
             updateHeartRate(data.value);
             break;
         case 'bluetoothStatus':
-            updateBluetoothStatus(data.state);
+            updateBluetoothStatus(data);
             break;
         case 'connectionError':
             updateStatus(`连接错误: ${data.message}`, 'error');
@@ -96,6 +99,11 @@ function updateStatus(message, type = 'info') {
     elements.status.className = `status ${type}`;
 }
 
+function updateFooter(message, type = 'info') {
+    elements.footer.textContent = message;
+    elements.footer.className = `footer ${type}`;
+}
+
 function enableControls(enabled) {
     // 只有在WebSocket连接且蓝牙可用时才启用扫描按钮
     if (enabled) {
@@ -110,17 +118,61 @@ function enableControls(enabled) {
     }
 }
 
-function updateBluetoothStatus(state) {
-    console.log('蓝牙状态:', state);
+function updateBluetoothStatus(data) {
+    const { state, platform, error } = data;
+    console.log('蓝牙状态:', state, platform);
     
     if (state === 'poweredOn') {
         updateStatus('蓝牙已就绪，可以开始扫描', 'success');
         elements.scanBtn.disabled = false;
-    } else {
-        updateStatus(`蓝牙状态: ${state} - 请检查蓝牙设置`, 'warning');
+        return;
+    }
+    
+    // Windows 平台特殊处理
+    if (platform === 'windows' && state === 'unsupported') {
+        updateStatus('Windows 蓝牙不支持 - 请以管理员身份运行应用', 'error');
+        showWindowsBluetoothHelp();
         elements.scanBtn.disabled = true;
         elements.stopBtn.disabled = true;
+        return;
     }
+    
+    // 其他蓝牙状态
+    const stateMessages = {
+        'unknown': '蓝牙状态未知',
+        'resetting': '蓝牙正在重置...',
+        'unsupported': '设备不支持蓝牙',
+        'unauthorized': '蓝牙权限被拒绝',
+        'poweredOff': '蓝牙已关闭，请打开蓝牙'
+    };
+    
+    const message = stateMessages[state] || `蓝牙状态: ${state}`;
+    const statusType = (state === 'poweredOff') ? 'warning' : 'error';
+    
+    updateStatus(`${message} - 请检查蓝牙设置`, statusType);
+    elements.scanBtn.disabled = true;
+    elements.stopBtn.disabled = true;
+}
+
+function showWindowsBluetoothHelp() {
+    // 在设备列表区域显示 Windows 蓝牙帮助
+    elements.deviceList.innerHTML = `
+        <div class="windows-help">
+            <div class="help-title">🔧 Windows 蓝牙配置帮助</div>
+            <div class="help-content">
+                <h4>解决步骤：</h4>
+                <ol>
+                    <li><strong>以管理员身份运行</strong><br>右键应用图标 → 以管理员身份运行</li>
+                    <li><strong>检查蓝牙驱动</strong><br>设备管理器 → 蓝牙 → 确保驱动正常</li>
+                    <li><strong>启用蓝牙服务</strong><br>Win+R → services.msc → 启动 "Bluetooth Support Service"</li>
+                    <li><strong>重启蓝牙适配器</strong><br>设备管理器 → 禁用后重新启用蓝牙适配器</li>
+                </ol>
+                <div class="help-note">
+                    💡 Windows 10/11 需要支持蓝牙 LE (低功耗蓝牙)
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 function updateScanStatus(scanning) {
@@ -374,5 +426,6 @@ window.addEventListener('DOMContentLoaded', () => {
     elements.disconnectBtn.disabled = true;
     
     updateStatus('正在启动应用...', 'info');
+    updateFooter('启动通信服务...', 'connecting');
     connectWebSocket();
 });
