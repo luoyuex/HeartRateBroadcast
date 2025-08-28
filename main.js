@@ -641,7 +641,7 @@ function updateTrayMenu() {
           type: 'info',
           title: '关于心率监测器',
           message: '心率监测器 v1.0.2',
-          detail: '一个简单的蓝牙心率监测桌面应用'
+          detail: '一个简单的蓝牙心率监测桌面应用，有问题可以联系作者微信（注明来意）：luoyuecn'
         });
       }
     },
