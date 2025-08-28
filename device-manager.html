@@ -72,6 +72,54 @@
             border-bottom: 1px solid #f0f0f0;
         }
         
+        .heart-rate-settings {
+            padding: 16px;
+            background: #fff;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .settings-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 12px;
+        }
+        
+        .setting-item {
+            margin-bottom: 8px;
+        }
+        
+        .setting-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 8px 0;
+            transition: background-color 0.15s ease;
+            border-radius: 4px;
+        }
+        
+        .setting-label:hover {
+            background-color: #f8f8f8;
+            padding-left: 4px;
+            margin-left: -4px;
+        }
+        
+        .setting-label input[type="radio"] {
+            margin-right: 8px;
+            accent-color: #07c160;
+        }
+        
+        .radio-text {
+            font-size: 13px;
+            color: #555;
+        }
+        
+        .setting-desc {
+            font-size: 11px;
+            color: #888;
+            margin-left: 4px;
+        }
+        
         .btn {
             width: 100%;
             padding: 10px 16px;
@@ -373,6 +421,23 @@
                     <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" disabled>
                         断开连接
                     </button>
+                </div>
+                
+                <div class="heart-rate-settings">
+                    <div class="settings-title">心率显示设置</div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <input type="radio" name="displayMode" value="desktop" checked onchange="changeDisplayMode(this.value)">
+                            <span class="radio-text">桌面悬浮显示</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <input type="radio" name="displayMode" value="icon" onchange="changeDisplayMode(this.value)">
+                            <span class="radio-text">托盘图标显示</span>
+                            <span class="setting-desc">（推荐：直接显示）</span>
+                        </label>
+                    </div>
                 </div>
                 
                 <div class="device-list" id="deviceList">

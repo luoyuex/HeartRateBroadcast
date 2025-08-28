@@ -1,7 +1,7 @@
 {
   "name": "spark",
   "productName": "Spark",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "桌面心率显示应用",
   "main": "main.js",
   "author": "Spark Development Team",

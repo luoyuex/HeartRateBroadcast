@@ -2,6 +2,8 @@ let ws;
 let isScanning = false;
 let connectedDevice = null;
 let devices = new Map();
+let currentHeartRate = '--';
+let displayMode = 'desktop'; // 默认桌面显示模式
 
 const elements = {
     status: document.getElementById('status'),
@@ -80,6 +82,16 @@ function handleMessage(data) {
             break;
         case 'connectionError':
             updateStatus(`连接错误: ${data.message}`, 'error');
+            break;
+        case 'displayModeSync':
+            // 同步主进程的显示模式设置
+            if (data.mode && (data.mode === 'desktop' || data.mode === 'icon')) {
+                displayMode = data.mode;
+                const radioButton = document.querySelector(`input[name="displayMode"][value="${data.mode}"]`);
+                if (radioButton) {
+                    radioButton.checked = true;
+                }
+            }
             break;
         default:
             console.log('未知消息类型:', data.type);
@@ -228,6 +240,7 @@ function updateConnectionStatus(data) {
 }
 
 function updateHeartRate(value) {
+    currentHeartRate = value; // 保存当前心率值
     elements.heartRate.textContent = value;
     
     // 根据心率调整动画速度
@@ -425,7 +438,34 @@ window.addEventListener('DOMContentLoaded', () => {
     elements.stopBtn.disabled = true;
     elements.disconnectBtn.disabled = true;
     
+    // 加载保存的显示模式设置
+    const savedMode = localStorage.getItem('heartRateDisplayMode');
+    if (savedMode && (savedMode === 'desktop' || savedMode === 'icon')) {
+        displayMode = savedMode;
+        // 更新界面中的单选按钮状态
+        const radioButton = document.querySelector(`input[name="displayMode"][value="${savedMode}"]`);
+        if (radioButton) {
+            radioButton.checked = true;
+        }
+    }
+    
     updateStatus('正在启动应用...', 'info');
     updateFooter('启动通信服务...', 'connecting');
     connectWebSocket();
 });
+
+// 切换心率显示模式
+function changeDisplayMode(mode) {
+    displayMode = mode;
+    console.log('心率显示模式已切换到:', mode);
+    
+    // 发送设置变更消息到主进程
+    sendMessage({
+        type: 'displayModeChange',
+        mode: mode,
+        currentHeartRate: currentHeartRate
+    });
+    
+    // 保存设置到本地存储
+    localStorage.setItem('heartRateDisplayMode', mode);
+}

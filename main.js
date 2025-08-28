@@ -12,6 +12,9 @@ app.setPath('userData', path.join(app.getPath('appData'), 'Spark'));
 let mainWindow;
 let deviceManagerWindow;
 let tray = null;
+let currentHeartRate = '--';
+let heartRateDisplayMode = 'desktop'; // 默认桌面显示模式
+let defaultTrayIcon = null; // 保存默认托盘图标
 
 // 蓝牙设备管理
 const HEART_RATE_SERVICE_UUID = "180d";
@@ -47,6 +50,12 @@ function startWebSocketServer() {
     ws.send(JSON.stringify({
       type: 'bluetoothStatus',
       state: noble.state
+    }));
+    
+    // 发送当前心率显示模式设置
+    ws.send(JSON.stringify({
+      type: 'displayModeSync',
+      mode: heartRateDisplayMode
     }));
     
     ws.on('message', async (message) => {
@@ -91,8 +100,37 @@ async function handleClientMessage(data, ws) {
     case 'disconnect':
       await disconnectDevice();
       break;
+    case 'displayModeChange':
+      handleDisplayModeChange(data.mode);
+      break;
     default:
       console.log('未知消息类型:', data.type);
+  }
+}
+
+// 处理显示模式变更
+function handleDisplayModeChange(mode) {
+  console.log('切换心率显示模式到:', mode);
+  heartRateDisplayMode = mode;
+  
+  // 保存设置到文件
+  saveHeartRateDisplayMode(mode);
+  
+  if (mode === 'desktop') {
+    // 桌面显示模式 - 显示心率窗口，恢复默认托盘图标
+    if (!mainWindow) {
+      createHeartRateWindow();
+    } else {
+      mainWindow.show();
+    }
+    // 恢复默认托盘图标
+    restoreDefaultTrayIcon();
+  } else if (mode === 'icon') {
+    // 托盘图标显示模式 - 隐藏心率窗口，使用动态心率图标
+    if (mainWindow) {
+      mainWindow.hide();
+    }
+    updateTrayIcon();
   }
 }
 
@@ -203,11 +241,18 @@ async function connectToDevice(deviceId) {
         }
         
         console.log(`❤️ 心率: ${hrValue} bpm`);
+        currentHeartRate = hrValue; // 保存当前心率值
+        
         broadcast({
           type: 'heartRate',
           value: hrValue,
           timestamp: Date.now()
         });
+        
+        // 根据显示模式更新相应的界面
+        if (heartRateDisplayMode === 'icon') {
+          updateTrayIcon();
+        }
       });
       
       await hrChar.subscribeAsync();
@@ -236,10 +281,17 @@ async function disconnectDevice() {
     }
     
     currentConnection = null;
+    currentHeartRate = '--'; // 重置心率值
+    
     broadcast({
       type: 'connectionStatus',
       connected: false
     });
+    
+    // 根据显示模式更新相应的界面
+    if (heartRateDisplayMode === 'icon') {
+      updateTrayIcon();
+    }
   }
 }
 
@@ -399,6 +451,52 @@ function initBluetooth() {
   });
 }
 
+// 初始化心率显示模式设置
+function initHeartRateDisplayMode() {
+  try {
+    const fs = require('fs');
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      if (settings.heartRateDisplayMode && 
+          (settings.heartRateDisplayMode === 'desktop' || 
+           settings.heartRateDisplayMode === 'icon')) {
+        heartRateDisplayMode = settings.heartRateDisplayMode;
+        console.log('📋 加载保存的心率显示模式:', heartRateDisplayMode);
+        
+        // 如果是托盘图标模式，立即更新图标
+        if (heartRateDisplayMode === 'icon') {
+          setTimeout(() => {
+            updateTrayIcon();
+          }, 500);
+        }
+      }
+    }
+  } catch (error) {
+    console.log('⚠️  加载显示模式设置失败:', error.message);
+  }
+}
+
+// 保存心率显示模式设置
+function saveHeartRateDisplayMode(mode) {
+  try {
+    const fs = require('fs');
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    
+    let settings = {};
+    if (fs.existsSync(settingsPath)) {
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    }
+    
+    settings.heartRateDisplayMode = mode;
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    console.log('💾 心率显示模式已保存:', mode);
+  } catch (error) {
+    console.log('⚠️  保存显示模式设置失败:', error.message);
+  }
+}
+
 // 获取应用图标路径的通用函数
 function getAppIconPath() {
   // macOS 使用 icns 文件，其他平台使用 ico 文件
@@ -472,6 +570,94 @@ function analyzeDeviceType(name, serviceUuids, advertisement) {
   return { category: 'unknown', name: '未知设备', icon: '❓' };
 }
 
+// 恢复默认托盘图标
+function restoreDefaultTrayIcon() {
+  if (!tray || !defaultTrayIcon) return;
+  
+  try {
+    tray.setImage(defaultTrayIcon);
+    tray.setTitle(''); // 清除文字
+    tray.setToolTip('心率监测器 - 点击打开设备管理器');
+  } catch (error) {
+    console.error('恢复默认托盘图标失败:', error);
+  }
+}
+
+// 更新托盘图标（用于托盘图标显示模式）
+function updateTrayIcon() {
+  if (!tray || heartRateDisplayMode !== 'icon') return;
+  
+  try {
+    // 直接更新托盘的标题文字，添加间隔和调整字体
+    let displayText = `${currentHeartRate}`;
+    if (currentHeartRate === '--' || currentHeartRate === 0) {
+      displayText = '--';
+    }
+    
+    // 添加空格作为间隔，让文字离图标远一点
+    const spacedText = ` ${displayText}`;
+    
+    // 设置托盘标题为心率文字
+    tray.setTitle(spacedText);
+    tray.setToolTip(`心率监测器 - 当前心率: ${currentHeartRate} bpm`);
+    console.log(`✅ 托盘文字已更新: ${displayText}`);
+    
+  } catch (error) {
+    console.error('❌ 更新托盘文字失败:', error.message);
+    if (tray) {
+      tray.setToolTip(`心率监测器 - 当前心率: ${currentHeartRate} bpm`);
+    }
+  }
+}
+
+// 更新托盘菜单
+function updateTrayMenu() {
+  if (!tray) return;
+  
+  // 创建简化的托盘菜单
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '心率显示',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        } else {
+          createHeartRateWindow();
+        }
+      }
+    },
+    {
+      label: '设备管理器',
+      click: () => {
+        showDeviceManager();
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '关于',
+      click: () => {
+        require('electron').dialog.showMessageBox(deviceManagerWindow || mainWindow, {
+          type: 'info',
+          title: '关于心率监测器',
+          message: '心率监测器 v1.0.2',
+          detail: '一个简单的蓝牙心率监测桌面应用'
+        });
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        app.isQuiting = true;
+        app.quit();
+      }
+    }
+  ]);
+  
+  tray.setContextMenu(contextMenu);
+}
+
 // 创建系统托盘
 function createTray() {
   // 使用应用图标作为托盘图标
@@ -528,52 +714,13 @@ function createTray() {
   }
   
   tray = new Tray(trayIcon);
+  defaultTrayIcon = trayIcon; // 保存默认图标的引用
   
   // 设置托盘提示文字
   tray.setToolTip('心率监测器 - 点击打开设备管理器');
   
-  // 创建托盘右键菜单
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: '心率显示',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        } else {
-          createHeartRateWindow();
-        }
-      }
-    },
-    {
-      label: '设备管理器',
-      click: () => {
-        showDeviceManager();
-      }
-    },
-    { type: 'separator' },
-    {
-      label: '关于',
-      click: () => {
-        require('electron').dialog.showMessageBox(deviceManagerWindow || mainWindow, {
-          type: 'info',
-          title: '关于心率监测器',
-          message: '心率监测器 v1.0.0',
-          detail: '一个简单的蓝牙心率监测桌面应用'
-        });
-      }
-    },
-    { type: 'separator' },
-    {
-      label: '退出',
-      click: () => {
-        app.isQuiting = true;
-        app.quit();
-      }
-    }
-  ]);
-  
-  tray.setContextMenu(contextMenu);
+  // 创建托盘菜单
+  updateTrayMenu();
   
   // 单击托盘图标打开设备管理器
   tray.on('click', () => {
@@ -857,12 +1004,15 @@ app.whenReady().then(async () => {
   // 创建系统托盘
   createTray();
   
+  // 加载保存的心率显示模式设置
+  initHeartRateDisplayMode();
+  
   // 分别创建窗口，避免重复创建
   createWindow(); // 创建设备管理器窗口
   
-  // 延迟创建心率窗口，确保只创建一次
+  // 延迟创建心率窗口，确保只创建一次，但只有在桌面模式时才创建
   setTimeout(() => {
-    if (!mainWindow) {
+    if (!mainWindow && heartRateDisplayMode === 'desktop') {
       createHeartRateWindow();
     }
   }, 1000);
@@ -887,12 +1037,9 @@ app.on('before-quit', async () => {
 });
 
 app.on('window-all-closed', () => {
-  // 在 Windows 下允许所有窗口关闭而不退出应用（因为有托盘）
-  // 只有在 macOS 下才退出应用
-  if (process.platform === 'darwin') {
-    app.quit();
-  }
-  // Windows 下什么也不做，应用继续在托盘中运行
+  // 所有平台都允许窗口关闭而不退出应用（因为有托盘）
+  // 应用继续在托盘中运行
+  console.log('所有窗口已关闭，应用继续在托盘中运行');
 });
 
 app.on('activate', () => {
