@@ -121,7 +121,10 @@ function handleDisplayModeChange(mode) {
     if (!mainWindow) {
       createHeartRateWindow();
     } else {
+      // 强制置顶现有窗口
+      mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
       mainWindow.show();
+      mainWindow.setVisibleOnAllWorkspaces(true);
     }
     // 恢复默认托盘图标
     restoreDefaultTrayIcon();
@@ -819,6 +822,42 @@ function createHeartRateWindow() {
   mainWindow = new BrowserWindow(windowOptions);
 
   mainWindow.loadFile('index.html');
+  
+  // 强制设置最高层级 - 多重保险
+  if (process.platform === 'darwin') {
+    // macOS 使用最高级别
+    mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+  } else if (process.platform === 'win32') {
+    // Windows 需要特殊处理
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+    // Windows 额外设置
+    mainWindow.setSkipTaskbar(false); // 确保任务栏显示
+  } else {
+    // Linux 使用屏保级别
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
+  }
+  
+  // 窗口加载完成后再次强制置顶
+  mainWindow.webContents.once('dom-ready', () => {
+    // 统一使用最高优先级参数
+    if (process.platform === 'darwin') {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+    } else {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver', 1); // Windows也使用级别1
+    }
+    
+    mainWindow.showInactive(); // 显示但不抢焦点
+    
+    // 跨平台工作空间设置
+    if (process.platform === 'darwin') {
+      mainWindow.setVisibleOnAllWorkspaces(true);
+    }
+    
+    // 延迟再次确保置顶
+    setTimeout(() => {
+      mainWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+    }, 500);
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
