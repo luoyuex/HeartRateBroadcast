@@ -21,7 +21,6 @@
   },
   "scripts": {
     "start": "ELECTRON_APP_NAME=Spark electron .",
-    "start-spark": "./start-spark.sh",
     "dev": "electron .",
     "build": "electron-builder",
     "build-dev": "electron-builder --dir",

@@ -93,6 +93,9 @@ function handleMessage(data) {
                 }
             }
             break;
+        case 'heartRateAnomalies':
+            handleHeartRateAnomalies(data.anomalies);
+            break;
         default:
             console.log('未知消息类型:', data.type);
     }
@@ -468,4 +471,103 @@ function changeDisplayMode(mode) {
     
     // 保存设置到本地存储
     localStorage.setItem('heartRateDisplayMode', mode);
+}
+
+// 打开心率图表窗口
+function openHeartRateChart() {
+    console.log('打开心率图表窗口');
+    
+    // 发送消息到主进程请求打开图表窗口
+    sendMessage({
+        type: 'openHeartRateChart'
+    });
+}
+
+// ========== 异常提醒功能 ==========
+
+let alertBannerTimeout = null;
+
+// 处理心率异常
+function handleHeartRateAnomalies(anomalies) {
+    console.log('⚠️ 收到心率异常:', anomalies);
+    
+    if (!anomalies || anomalies.length === 0) return;
+    
+    // 显示最严重的异常
+    const criticalAnomalies = anomalies.filter(a => a.severity === 'critical');
+    const warningAnomalies = anomalies.filter(a => a.severity === 'warning');
+    const infoAnomalies = anomalies.filter(a => a.severity === 'info');
+    
+    let mostSevereAnomaly;
+    if (criticalAnomalies.length > 0) {
+        mostSevereAnomaly = criticalAnomalies[0];
+    } else if (warningAnomalies.length > 0) {
+        mostSevereAnomaly = warningAnomalies[0];
+    } else {
+        mostSevereAnomaly = infoAnomalies[0];
+    }
+    
+    if (mostSevereAnomaly) {
+        showAlertBanner(mostSevereAnomaly);
+    }
+}
+
+// 显示异常横幅
+function showAlertBanner(anomaly) {
+    const banner = document.getElementById('alertBanner');
+    const icon = document.getElementById('alertBannerIcon');
+    const text = document.getElementById('alertBannerText');
+    
+    if (!banner || !icon || !text) return;
+    
+    const severityEmojis = {
+        'info': 'ℹ️',
+        'warning': '⚠️',
+        'critical': '🚨'
+    };
+    
+    const emoji = severityEmojis[anomaly.severity] || '⚠️';
+    
+    // 设置内容
+    icon.textContent = emoji;
+    text.textContent = anomaly.message;
+    
+    // 设置样式
+    banner.className = `alert-banner ${anomaly.severity}`;
+    
+    // 显示横幅
+    banner.style.display = 'flex';
+    
+    // 清除之前的自动隐藏定时器
+    if (alertBannerTimeout) {
+        clearTimeout(alertBannerTimeout);
+    }
+    
+    // 根据严重程度设置自动隐藏时间
+    const autoHideTime = {
+        'info': 8000,      // 8秒
+        'warning': 12000,   // 12秒
+        'critical': 20000   // 20秒
+    };
+    
+    const hideTime = autoHideTime[anomaly.severity] || 10000;
+    
+    alertBannerTimeout = setTimeout(() => {
+        closeAlertBanner();
+    }, hideTime);
+    
+    console.log(`🚨 显示异常横幅: ${anomaly.message} (${anomaly.severity})`);
+}
+
+// 关闭异常横幅
+function closeAlertBanner() {
+    const banner = document.getElementById('alertBanner');
+    if (banner) {
+        banner.style.display = 'none';
+    }
+    
+    if (alertBannerTimeout) {
+        clearTimeout(alertBannerTimeout);
+        alertBannerTimeout = null;
+    }
 }

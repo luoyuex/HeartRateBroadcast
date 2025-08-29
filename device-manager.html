@@ -52,6 +52,100 @@
             color: #f39800;
         }
         
+        .status-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .alert-banner {
+            background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+            border: 1px solid #e17055;
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #2d3436;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            animation: slideDown 0.3s ease;
+            max-width: 300px;
+        }
+        
+        .alert-banner.critical {
+            background: linear-gradient(135deg, #fab1a0, #e84393);
+            border-color: #e84393;
+            color: white;
+        }
+        
+        .alert-banner.warning {
+            background: linear-gradient(135deg, #ffeaa7, #fdcb6e);
+            border-color: #fdcb6e;
+        }
+        
+        .alert-banner.info {
+            background: linear-gradient(135deg, #74b9ff, #0984e3);
+            border-color: #0984e3;
+            color: white;
+        }
+        
+        .alert-banner-icon {
+            font-size: 14px;
+            animation: bounce 2s infinite;
+        }
+        
+        .alert-banner-text {
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .alert-banner-close {
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        
+        .alert-banner-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-4px);
+            }
+            60% {
+                transform: translateY(-2px);
+            }
+        }
+        
         .main {
             flex: 1;
             display: flex;
@@ -273,6 +367,47 @@
         
         .heart-display {
             text-align: center;
+            cursor: pointer;
+            padding: 20px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            position: relative;
+            border: 2px solid transparent;
+        }
+        
+        .heart-display:hover {
+            background: rgba(7, 193, 96, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: rgba(7, 193, 96, 0.3);
+        }
+        
+        .chart-hint {
+            background: #007bff;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            opacity: 1;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+            margin-bottom: 10px;
+        }
+        
+        .heart-display:hover .chart-hint {
+            background: #0056b3;
+            transform: scale(1.05);
+        }
+        
+        .chart-description {
+            margin-top: 10px;
+            background: rgba(0, 123, 255, 0.1);
+            color: #007bff;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            white-space: nowrap;
         }
         
         .heart-rate-big {
@@ -406,7 +541,14 @@
     <div class="app">
         <div class="header">
             <h1 class="title">心率监测器</h1>
-            <div class="status" id="status">正在启动...</div>
+            <div class="status-container">
+                <div class="status" id="status">正在启动...</div>
+                <div class="alert-banner" id="alertBanner" style="display: none;">
+                    <span class="alert-banner-icon" id="alertBannerIcon">⚠️</span>
+                    <span class="alert-banner-text" id="alertBannerText">异常提醒</span>
+                    <button class="alert-banner-close" onclick="closeAlertBanner()">×</button>
+                </div>
+            </div>
         </div>
         
         <div class="main">
@@ -435,7 +577,7 @@
                         <label class="setting-label">
                             <input type="radio" name="displayMode" value="icon" onchange="changeDisplayMode(this.value)">
                             <span class="radio-text">托盘图标显示</span>
-                            <span class="setting-desc">（推荐：直接显示）</span>
+                            <span class="setting-desc">（windows系统不支持）</span>
                         </label>
                     </div>
                 </div>
@@ -454,10 +596,12 @@
                     请先扫描并连接心率设备
                 </div>
                 
-                <div class="heart-display" id="heartDisplay" style="display: none;">
+                <div class="heart-display" id="heartDisplay" style="display: none;" onclick="openHeartRateChart()" title="点击查看心率图表">
+                    <div class="chart-hint">📊 查看图表</div>
                     <div class="heart-icon heart-beat" style="font-size: 40px;">❤️</div>
                     <div class="heart-rate-big" id="heartRate">--</div>
                     <div class="bpm-label">BPM</div>
+                    <div class="chart-description">点击查看历史数据图表</div>
                 </div>
             </div>
         </div>
